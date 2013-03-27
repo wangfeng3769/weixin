@@ -1,0 +1,12 @@
+Django
+MySQL-python
+redis
+hiredis
+requests
+setproctitle
+gunicorn
+gevent
+PIL
+django-redis-cache
+elaphe
+Ghostscript

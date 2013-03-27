@@ -1,0 +1,64 @@
+# -*- coding: utf-8 -*-
+import json
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import connection
+from django.http import HttpResponse, HttpResponseRedirect
+from django.shortcuts import render_to_response
+from django.views.decorators.csrf import csrf_exempt
+import xml.etree.ElementTree as ET
+from weixin.helper import judge_text, text_reply, to_unicode, userinfo_add, music_reply, judge_event
+import hashlib
+import time
+TOKEN = 'leyingke'   #用于测试的名称
+def check_signature(request):
+    """本功能用于首次的签名验证，首次验证签名功能后即可注释掉"""
+    global TOKEN
+    signature = request.GET.get("signature", None)
+    timestamp = request.GET.get("timestamp", None)
+    nonce = request.GET.get("nonce", None)
+    echoStr = request.GET.get("echostr",None)
+    print signature,timestamp,nonce,echoStr
+
+    token = TOKEN
+    tmpList = [token,timestamp,nonce]
+    tmpList.sort()
+    tmpstr = "%s%s%s" % tuple(tmpList)
+    tmpstr = hashlib.sha1(tmpstr).hexdigest()
+    if tmpstr == signature:
+        return HttpResponse(echoStr,content_type="text/plain")
+    else:
+        return HttpResponse('none',content_type="text/plain")
+
+def parse_msg(request):
+    """此函数用于解析XML文档，确定XML的类型"""
+    msg ={}
+    # xlm_tree = request.body.read()
+    # print str(xlm_tree)
+    xlm_tree = request.raw_post_data         #此处可以代替上一个表达式
+    root= ET.fromstring(xlm_tree)
+    for child in root:
+        msg[child.tag] = str(child.text)
+    return msg
+
+@csrf_exempt   #此函数用来避免403错误
+def wechat(request):
+    if request.method =="GET":
+        return check_signature(request)
+    if request.method =="POST":
+        content =  response_msg(request)
+        # print content
+        return HttpResponse(content,content_type = "application/xml")
+
+def response_msg(request):
+    msg = parse_msg(request)
+    if msg['MsgType'] == 'text':
+        return judge_text(msg)
+    elif msg['MsgType'] == 'music':
+        response_content = dict(content = judge_text(msg),
+            touser = msg['FromUserName'],
+            fromuser = msg['ToUserName'],
+            createtime = str(int(time.time())),)
+        return music_reply.format(**response_content)
+    elif msg['MsgType'] == 'event':
+        return judge_event(msg)
+
